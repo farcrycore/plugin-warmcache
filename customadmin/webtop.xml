@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<webtop>
+	<section id="admin">
+		<subsection id="coapi">
+            <menu id="cachetools" sequence="30" label="Cache Tools">
+                <menuitem sequence="15" id="warmcache" label="Warm Cache" typename="configWarmCache" />
+            </menu>
+		</subsection>
+	</section>
+</webtop>
