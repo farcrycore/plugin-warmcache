@@ -4,6 +4,11 @@ This plugin provides tools for pre-loading data into Object Broker. This is
 intended to reduce the performance hit of clearing Object Broker after large
 updates (e.g. imports).
 
+**NOTE**: This plugin depends on either the `memcached` or `redis` caching
+plugins. If your project already uses those plugins, check the `README.md` to
+confirm that your version supports the `prepareCacheVersion` and
+`finalizeCacheVersion` functions.
+
 ## Webtop tool
 
 Admin > Developer Utilities > Cache Tools > Warm Cache
@@ -20,3 +25,17 @@ To warm the cache from code, use the following command:
 Currently only content object warming is supported, e.g.
 
     application.fc.lib.warmcache.warmCache("dmHTML", "contenttype")
+
+### performWarmCache
+
+`application.fc.lib.warmcache.performWarmCache(caches)`:
+
+- prepares the next cache version
+- runs the specified cache functions
+- finalizes the next cache version
+- saves cache warming statistics
+
+### Standard Strategy
+
+The plugin now supports saving a standard strategy that can easily be executed
+using `application.fc.lib.warmcache.performWarmCache()`.
