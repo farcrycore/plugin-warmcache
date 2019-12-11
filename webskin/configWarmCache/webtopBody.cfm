@@ -3,18 +3,16 @@
 <cfimport taglib="/farcry/core/tags/formtools" prefix="ft" />
 <cfimport taglib="/farcry/core/tags/webskin" prefix="skin" />
 
-<cfset stPushed = {} />
-<cfset previousCacheVersion = application.fc.lib.objectbroker.getCacheVersion() />
-<cfset newCacheVersion = previousCacheVersion />
-
-<ft:processForm action="Run Standard Strategy">
-    <cfset stPushed = application.fc.lib.warmcache.performWarmCache(application.fapi.getConfig("warmcache", "standardStrategy")) />
-    <cfset newCacheVersion = application.fc.lib.objectbroker.getCacheVersion() />
+<ft:processForm action="Run Standard Strategy" url="refresh">
+    <cfthread name="runwarming">
+        <cfset application.fc.lib.warmcache.performWarmCache(application.fapi.getConfig("warmcache", "standardStrategy")) />
+    </cfthread>
 </ft:processForm>
 
-<ft:processForm action="Run">
-    <cfset stPushed = application.fc.lib.warmcache.performWarmCache(form.cachename) />
-    <cfset newCacheVersion = application.fc.lib.objectbroker.getCacheVersion() />
+<ft:processForm action="Run" url="refresh">
+    <cfthread name="runwarming">
+        <cfset application.fc.lib.warmcache.performWarmCache(form.cachename) />
+    </cfthread>
 </ft:processForm>
 
 <ft:processForm action="Save as Standard Strategy">
@@ -33,11 +31,6 @@
     <cfoutput>
         <h1>Warm Caches</h1>
         <p>NOTE: the order that options are listed here represents the order the warming will be performed in.</p>
-        <cfif previousCacheVersion neq newCacheVersion>
-            <p>Previous cache version: <strong>#previousCacheVersion#</strong>, current cache version: <strong>#newCacheVersion#</strong></p>
-        <cfelse>
-            <p>Current cache version: <strong>#newCacheVersion#</strong></p>
-        </cfif>
         <div class="row-fluid">
             <div class="span6">
                 <iframe src="/index.cfm?type=configWarmCache&view=webtopBodyStats" style="border:0; width:100%; height:1300px;">Loading</iframe>
@@ -54,9 +47,6 @@
                         <tr>
                             <th><input type="checkbox" name="all"></th>
                             <th>Cache</th>
-                            <cfif not structIsEmpty(stPushed)>
-                                <th>## Pushed</th>
-                            </cfif>
                         </tr>
                     </thead>
                     <tbody>
@@ -69,13 +59,6 @@
                 #qCaches.label#<br>
                 <code>application.fc.lib.warmcache.warmCache("#qCaches.id#", "#qCaches.type#")</code>
             </td>
-            <cfif not structIsEmpty(stPushed)>
-                <cfif structKeyExists(stPushed, qCaches.id)>
-                    <td>#stPushed[qCaches.id].pushed#</td>
-                <cfelse>
-                    <td></th>
-                </cfif>
-            </cfif>
         </tr>
     </cfoutput>
 

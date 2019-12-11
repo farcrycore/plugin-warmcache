@@ -35,9 +35,20 @@ component {
 
         cfsetting(requesttimeout=50000);
 
+        application.warmCacheProgress = {
+            "start" = now(),
+            "cacheType" = "",
+            "cacheProgress" = 0,
+            "old_version" = stPushed.old_version
+        };
+
         application.fc.lib.objectbroker.prepareCacheVersion();
 
+        application.warmCacheProgress["new_version"] = application.fc.lib.objectbroker.getCacheVersion();
+
         for (var cachename in listToArray(arguments.caches)) {
+            application.warmCacheProgress["cacheType"] = cacheName;
+            application.warmCacheProgress["cacheProgress"] = 0;
             stPushed.stats[cachename] = application.fc.lib.warmcache.warmCache(listGetAt(cachename, 1, ":"), listGetAt(cachename, 2, ":"));
         }
 
@@ -48,6 +59,8 @@ component {
         stPushed["time"] = getTickCount() - startTime;
         stPushed["machine"] = application.sysInfo.machineName;
         application.fc.lib.cdn.ioWriteFile(location="privatefiles", file="/warmcache/stats_#dateformat(now(), 'yyyymmdd')##timeformat(now(), 'HHmm')#.json", data=serializeJSON(stPushed));
+
+        structDelete(application, "warmCacheProgress");
 
         return stPushed;
     }
@@ -74,10 +87,16 @@ component {
     public numeric function warmContentTypeCache(required string typename) {
         var stData = getContentTypeFull(arguments.typename, "contenttype");
         var objectid = "";
+        var count = 0;
+        var total = structCount(stData);
 
         // push selected page of data to objectbroker
         for (objectid in stData) {
             application.fc.lib.objectbroker.AddToObjectBroker(stobj=stData[objectid],typename=arguments.typename);
+            count += 1;
+            if (structKeyExists(application, "warmCacheProgress")) {
+                application.warmCacheProgress.cacheProgress = count / total;
+            }
         }
 
         return structCount(stData);
@@ -96,6 +115,8 @@ component {
         var threadid = "";
         var maxSimultaneous = application.fapi.getConfig("warmcache", "threads");
         var overrideKey = "cacheversion_app";
+        var count = 0;
+        var total = structCount(stData);
 
         if (listFindNoCase(application.plugins, "memcached")) {
             overrideKey &= "_#application.fapi.getConfig('memcached', 'accessKey')#=#cacheVersion#";
@@ -110,6 +131,10 @@ component {
         // push selected page of data to objectbroker
         Each(stData, function(objectid){
             cfhttp(method="HEAD", url="http://localhost#stData[objectid].friendlyURL##find('?', stData[objectid].friendlyURL) ? '&' : '?'##overrideKey#", throwOnError=false) {}
+            count += 1;
+            if (structKeyExists(application, "warmCacheProgress")) {
+                application.warmCacheProgress.cacheProgress = count / total;
+            }
         }, true, maxSimultaneous);
 
         return structCount(stData);

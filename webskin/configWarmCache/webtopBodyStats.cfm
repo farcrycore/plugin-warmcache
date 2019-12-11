@@ -73,6 +73,10 @@
             var chart = new google.charts.Bar(document.getElementById('totaltimetakenchart'));
             chart.draw(data, google.charts.Bar.convertOptions(options));
         }
+
+        <cfif structKeyExists(application, "warmCacheProgress")>
+            setTimeout(function() { window.location.reload(); }, 5000);
+        </cfif>
     </script>
 </cfoutput></skin:htmlHead>
 
@@ -82,15 +86,16 @@
         <head>
         </head>
         <body>
-            <!---<div class="container-fluid">
-                <div class="row-fluid">
-                    <div class="row">
-                        <div id="pushedchart" class="span6"></div>
-                        <div id="totaltimetakenchart" class="span6"></div>
-                        <div id="avgtimetakenchart" class="span6"></div>
-                    </div>
-                </div>
-            </div>--->
+            <cfif structKeyExists(application, "warmCacheProgress")>
+                <p>
+                    Warming in progress (started at #timeFormat(application.warmCacheProgress.start, 'h:mmtt')#, #dateFormat(application.warmCacheProgress.start, 'd mmm yyyy')#)<br>
+                    Current cache version: <strong>#application.warmCacheProgress.old_version#</strong>, preparing: <strong>#application.warmCacheProgress.new_version#</strong><br>
+                    #application.warmCacheProgress.cacheType# (#numberFormat(application.warmCacheProgress.cacheProgress * 100, '0.00')#%)
+                </p>
+            <cfelse>
+                <p>Current cache version: <strong>#application.fc.lib.objectbroker.getCacheVersion()#</strong></p>
+            </cfif>
+            <br>
             <div id="pushedchart"></div>
             <div id="totaltimetakenchart"></div>
             <div id="avgtimetakenchart"></div>
