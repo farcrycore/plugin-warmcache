@@ -33,7 +33,7 @@ component {
         };
         var startTime = getTickCount();
 
-        cfsetting(requesttimeout=10000);
+        cfsetting(requesttimeout=50000);
 
         application.fc.lib.objectbroker.prepareCacheVersion();
 
