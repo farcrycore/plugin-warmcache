@@ -28,7 +28,8 @@ component {
     public struct function performWarmCache(required string caches=application.fapi.getConfig("warmcache", "standardStrategy")) {
         var stPushed = {
             "stats" = {},
-            "old_version" = application.fc.lib.objectbroker.getCacheVersion()
+            "old_version" = application.fc.lib.objectbroker.getCacheVersion(),
+            "start" = now()
         };
         var startTime = getTickCount();
 
@@ -42,8 +43,10 @@ component {
 
         application.fc.lib.objectbroker.finalizeCacheVersion();
 
+        stPushed["finish"] = now();
         stPushed["new_version"] = application.fc.lib.objectbroker.getCacheVersion();
         stPushed["time"] = getTickCount() - startTime;
+        stPushed["machine"] = application.sysInfo.machineName;
         application.fc.lib.cdn.ioWriteFile(location="privatefiles", file="/warmcache/stats_#dateformat(now(), 'yyyymmdd')##timeformat(now(), 'HHmm')#.json", data=serializeJSON(stPushed));
 
         return stPushed;
@@ -212,27 +215,46 @@ component {
 
     public struct function getStatHistory(numeric maxrows=3, numeric truncateTo=100) {
         var qFiles = application.fc.lib.cdn.ioGetDirectoryListing(location='privatefiles', dir='/warmcache/');
-        var i = 0;
+        var row = {};
         var stResult = {
-            "data" = queryNew("timestamp,timestampFormatted", "date,string"),
-            "dates" = [],
+            "data" = queryNew("file,machine,start,timestamp,label,oldVersion,newVersion,total", "string,string,date,date,string,numeric,numeric,numeric"),
+            "labels" = [],
             "caches" = []
         };
         var stData = {};
         var cacheType = "";
         var dt = "";
+        var stCacheTypes = {};
+        var label = "";
 
         for (i=1; i<=qFiles.recordcount - arguments.truncateTo; i++) {
-            application.fc.lib.cdn.ioDeleteFile(location='privatefiles', file='/warmcache/' & qFiles.file[i]);
+            application.fc.lib.cdn.ioDeleteFile(location='privatefiles', file='/warmcache' & qFiles.file[i]);
         }
 
-        for (i=qFiles.recordcount; i>=qFiles.recordcount - arguments.maxrows + 1 and i>0; i--) {
-            stData = deserializeJSON(application.fc.lib.cdn.ioReadFile(location='privatefiles', file='/warmcache/' & qFiles.file[i]));
-            dt = createDateTime(mid(qFiles.file[i], 8, 4), mid(qFiles.file[i], 12, 2), mid(qFiles.file[i], 14, 2), mid(qFiles.file[i], 16, 2), mid(qFiles.file[i], 18, 2), 0);
+        for (row in qFiles) {
+            stData = deserializeJSON(application.fc.lib.cdn.ioReadFile(location='privatefiles', file='/warmcache/' & row.file));
+            dt = createDateTime(mid(row.file, 8, 4), mid(row.file, 12, 2), mid(row.file, 14, 2), mid(row.file, 16, 2), mid(row.file, 18, 2), 0);
+            label = dateFormat(dt, 'd mmm yyyy') & " " & timeFormat(dt, "HH:mm") & " (" & stData.old_version & ">" & stData.new_version & ")";
+            stCacheTypes[label] = [];
 
             queryAddRow(stResult.data);
-            querySetCell(stResult.data, "timestamp", dt);
-            querySetCell(stResult.data, "timestampFormatted", dateFormat(dt, 'd mmm yyyy') & " " & timeFormat(dt, "HH:mm") & " (" & stData.old_version & ">" & stData.new_version & ")");
+            querySetCell(stResult.data, "file", '/warmcache' & row.file);
+            if (structKeyExists(stData, "machine")) {
+                querySetCell(stResult.data, "machine", stData.machine);
+            }
+            if (structKeyExists(stData, "start")) {
+                querySetCell(stResult.data, "start", dt);
+            }
+            if (structKeyExists(stData, "finish")) {
+                querySetCell(stResult.data, "timestamp", stData.finish);
+            }
+            else {
+                querySetCell(stResult.data, "timestamp", dt);
+            }
+            querySetCell(stResult.data, "label", label);
+            querySetCell(stResult.data, "oldVersion", stData.old_version);
+            querySetCell(stResult.data, "newVersion", stData.new_version);
+            querySetCell(stResult.data, "total", stData.time);
 
             for (cacheType in stData.stats) {
                 if (not listFindNoCase(stResult.data.columnlist, replace(cacheType, ":", "_") & "_count")) {
@@ -241,13 +263,24 @@ component {
                     arrayAppend(stResult.caches, cacheType);
                 }
 
+                arrayAppend(stCacheTypes[label], cacheType);
+
                 querySetCell(stResult.data, replace(cacheType, ":", "_") & "_count", stData.stats[cacheType].pushed);
                 querySetCell(stResult.data, replace(cacheType, ":", "_") & "_time", stData.stats[cacheType].time);
             }
         }
 
+        stResult.data = queryExecute("SELECT * FROM stResult.data ORDER BY timestamp desc", {  }, { dbType="query", maxrows=arguments.maxrows })
         stResult.data = queryExecute("SELECT * FROM stResult.data ORDER BY timestamp asc", {  }, { dbType="query" })
-        stResult.dates = listToArray(valueList(stResult.data.timestampFormatted));
+
+        for (row in stResult.data) {
+            arrayAppend(stResult.labels, row.label);
+            for (cacheType in stCacheTypes[row.label]) {
+                if (not arrayFind(stResult.caches, cacheType)) {
+                    arrayAppend(stResult.caches, cacheType);
+                }
+            }
+        }
         arraySort(stResult.caches, "textnocase");
 
         return stResult;
@@ -264,9 +297,9 @@ component {
         var cacheType = "";
         var i = 0;
 
-        arrayAppend(stResult.time[1], stStats.dates, true);
-        arrayAppend(stResult.pushed[1], stStats.dates, true);
-        arrayAppend(stResult.avgtimeper[1], stStats.dates, true);
+        arrayAppend(stResult.time[1], stStats.labels, true);
+        arrayAppend(stResult.pushed[1], stStats.labels, true);
+        arrayAppend(stResult.avgtimeper[1], stStats.labels, true);
         for (cacheType in stStats.caches) {
             arrayAppend(stResult.time, [replace(cacheType, ":", " (") & ")"]);
             arrayAppend(stResult.pushed, [replace(cacheType, ":", " (") & ")"]);
