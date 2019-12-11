@@ -224,7 +224,6 @@ component {
 
         for (i=1; i<=qFiles.recordcount - arguments.truncateTo; i++) {
             application.fc.lib.cdn.ioDeleteFile(location='privatefiles', file='/warmcache/' & qFiles.file[i]);
-            writeLog(file="warmcache", text="Cleared warmcache stats: #qFiles.file[i]#");
         }
 
         for (i=qFiles.recordcount; i>=qFiles.recordcount - arguments.maxrows + 1 and i>0; i--) {
