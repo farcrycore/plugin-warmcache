@@ -100,7 +100,7 @@ component {
             application.fc.lib.objectbroker.AddToObjectBroker(stobj=stData[objectid],typename=arguments.typename);
             count += 1;
             if (structKeyExists(application, "warmCacheProgress")) {
-                application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].progress = count;
+                application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].progress += 1;
             }
         }
 
@@ -141,7 +141,7 @@ component {
             cfhttp(method="HEAD", url="http://localhost#stData[objectid].friendlyURL##find('?', stData[objectid].friendlyURL) ? '&' : '?'##overrideKey#", throwOnError=false) {}
             count += 1;
             if (structKeyExists(application, "warmCacheProgress")) {
-                application.warmCacheProgress.cacheProgress["#stData[objectid].typename#:pagewebskin"].progress = count;
+                application.warmCacheProgress.cacheProgress["#stData[objectid].typename#:pagewebskin"].progress += 1;
             }
         }, true, maxSimultaneous);
 
