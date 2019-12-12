@@ -29,16 +29,15 @@ component {
         var stPushed = {
             "stats" = {},
             "old_version" = application.fc.lib.objectbroker.getCacheVersion(),
-            "start" = now()
+            "start" = round(getTickCount() / 1000)
         };
-        var startTime = getTickCount();
 
         cfsetting(requesttimeout=50000);
 
         application.warmCacheProgress = {
             "start" = now(),
-            "cacheType" = "",
-            "cacheProgress" = 0,
+            "cacheTypes" = [],
+            "cacheProgress" = {},
             "old_version" = stPushed.old_version
         };
 
@@ -46,19 +45,22 @@ component {
 
         application.warmCacheProgress["new_version"] = application.fc.lib.objectbroker.getCacheVersion();
 
+        application.warmCacheProgress.cacheTypes = listToArray(arguments.caches);
         for (var cachename in listToArray(arguments.caches)) {
-            application.warmCacheProgress["cacheType"] = cacheName;
-            application.warmCacheProgress["cacheProgress"] = 0;
+            application.warmCacheProgress.cacheProgress[cacheName] = {
+                "progress" = 0,
+                "total" = 0
+            };
             stPushed.stats[cachename] = application.fc.lib.warmcache.warmCache(listGetAt(cachename, 1, ":"), listGetAt(cachename, 2, ":"));
         }
 
         application.fc.lib.objectbroker.finalizeCacheVersion();
 
-        stPushed["finish"] = now();
+        stPushed["finish"] = round(getTickCount() / 1000);
         stPushed["new_version"] = application.fc.lib.objectbroker.getCacheVersion();
-        stPushed["time"] = getTickCount() - startTime;
+        stPushed["time"] = stPushed.finish - stPushed.start;
         stPushed["machine"] = application.sysInfo.machineName;
-        application.fc.lib.cdn.ioWriteFile(location="privatefiles", file="/warmcache/stats_#dateformat(now(), 'yyyymmdd')##timeformat(now(), 'HHmm')#.json", data=serializeJSON(stPushed));
+        application.fc.lib.cdn.ioWriteFile(location="privatefiles", file="/warmcache/stats_#stPushed.finish#.json", data=serializeJSON(stPushed));
 
         structDelete(application, "warmCacheProgress");
 
@@ -80,7 +82,7 @@ component {
                 throw(message="Unknown cache type: #arguments.type#");
         }
 
-        stResult["time"] = getTickCount() - start;
+        stResult["time"] = round((getTickCount() - start) / 1000);
         return stResult;
     }
 
@@ -88,14 +90,17 @@ component {
         var stData = getContentTypeFull(arguments.typename, "contenttype");
         var objectid = "";
         var count = 0;
-        var total = structCount(stData);
 
+        if (structKeyExists(application, "warmCacheProgress")) {
+            application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].total = structCount(stData);
+        }
+        
         // push selected page of data to objectbroker
         for (objectid in stData) {
             application.fc.lib.objectbroker.AddToObjectBroker(stobj=stData[objectid],typename=arguments.typename);
             count += 1;
             if (structKeyExists(application, "warmCacheProgress")) {
-                application.warmCacheProgress.cacheProgress = count / total;
+                application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].progress = count;
             }
         }
 
@@ -116,7 +121,10 @@ component {
         var maxSimultaneous = application.fapi.getConfig("warmcache", "threads");
         var overrideKey = "cacheversion_app";
         var count = 0;
-        var total = structCount(stData);
+
+        if (structKeyExists(application, "warmCacheProgress")) {
+            application.warmCacheProgress.cacheProgress["#arguments.typename#:pagewebskin"].total = structCount(stData);
+        }
 
         if (listFindNoCase(application.plugins, "memcached")) {
             overrideKey &= "_#application.fapi.getConfig('memcached', 'accessKey')#=#cacheVersion#";
@@ -133,7 +141,7 @@ component {
             cfhttp(method="HEAD", url="http://localhost#stData[objectid].friendlyURL##find('?', stData[objectid].friendlyURL) ? '&' : '?'##overrideKey#", throwOnError=false) {}
             count += 1;
             if (structKeyExists(application, "warmCacheProgress")) {
-                application.warmCacheProgress.cacheProgress = count / total;
+                application.warmCacheProgress.cacheProgress["#stData[objectid].typename#:pagewebskin"].progress = count;
             }
         }, true, maxSimultaneous);
 
@@ -242,13 +250,13 @@ component {
         var qFiles = application.fc.lib.cdn.ioGetDirectoryListing(location='privatefiles', dir='/warmcache/');
         var row = {};
         var stResult = {
-            "data" = queryNew("file,machine,start,timestamp,label,oldVersion,newVersion,total", "string,string,date,date,string,numeric,numeric,numeric"),
+            "data" = queryNew("file,machine,start,finish,label,oldVersion,newVersion,total", "string,string,numeric,numeric,string,numeric,numeric,numeric"),
             "labels" = [],
             "caches" = []
         };
         var stData = {};
         var cacheType = "";
-        var dt = "";
+        var finishDate = "";
         var stCacheTypes = {};
         var label = "";
 
@@ -258,24 +266,15 @@ component {
 
         for (row in qFiles) {
             stData = deserializeJSON(application.fc.lib.cdn.ioReadFile(location='privatefiles', file='/warmcache/' & row.file));
-            dt = createDateTime(mid(row.file, 8, 4), mid(row.file, 12, 2), mid(row.file, 14, 2), mid(row.file, 16, 2), mid(row.file, 18, 2), 0);
-            label = dateFormat(dt, 'd mmm yyyy') & " " & timeFormat(dt, "HH:mm") & " (" & stData.old_version & ">" & stData.new_version & ")";
+            finishDate = DateAdd("s", stData.finish, DateConvert("utc2Local", "January 1 1970 00:00"));
+            label = dateFormat(finishDate, 'd mmm yyyy') & " " & timeFormat(finishDate, "HH:mm") & " (" & stData.old_version & ">" & stData.new_version & ")";
             stCacheTypes[label] = [];
 
             queryAddRow(stResult.data);
             querySetCell(stResult.data, "file", '/warmcache' & row.file);
-            if (structKeyExists(stData, "machine")) {
-                querySetCell(stResult.data, "machine", stData.machine);
-            }
-            if (structKeyExists(stData, "start")) {
-                querySetCell(stResult.data, "start", dt);
-            }
-            if (structKeyExists(stData, "finish")) {
-                querySetCell(stResult.data, "timestamp", stData.finish);
-            }
-            else {
-                querySetCell(stResult.data, "timestamp", dt);
-            }
+            querySetCell(stResult.data, "machine", stData.machine);
+            querySetCell(stResult.data, "start", stData.start);
+            querySetCell(stResult.data, "finish", stData.finish);
             querySetCell(stResult.data, "label", label);
             querySetCell(stResult.data, "oldVersion", stData.old_version);
             querySetCell(stResult.data, "newVersion", stData.new_version);
@@ -295,8 +294,8 @@ component {
             }
         }
 
-        stResult.data = queryExecute("SELECT * FROM stResult.data ORDER BY timestamp desc", {  }, { dbType="query", maxrows=arguments.maxrows })
-        stResult.data = queryExecute("SELECT * FROM stResult.data ORDER BY timestamp asc", {  }, { dbType="query" })
+        stResult.data = queryExecute("SELECT * FROM stResult.data ORDER BY finish desc", {  }, { dbType="query", maxrows=arguments.maxrows })
+        stResult.data = queryExecute("SELECT * FROM stResult.data ORDER BY finish asc", {  }, { dbType="query" })
 
         for (row in stResult.data) {
             arrayAppend(stResult.labels, row.label);
@@ -334,10 +333,10 @@ component {
         for (row in stStats.data) {
             for (i=1; i<=arrayLen(stStats.caches); i++) {
                 if (len(row[replace(stStats.caches[i], ':', '_') & "_time"])) {
-                    arrayAppend(stResult.time[i+1], round(row[replace(stStats.caches[i], ':', '_') & "_time"] / 1000));
+                    arrayAppend(stResult.time[i+1], row[replace(stStats.caches[i], ':', '_') & "_time"]);
                     arrayAppend(stResult.pushed[i+1], row[replace(stStats.caches[i], ':', '_') & "_count"]);
                     if (row[replace(stStats.caches[i], ':', '_') & "_count"]) {
-                        arrayAppend(stResult.avgtimeper[i+1], row[replace(stStats.caches[i], ':', '_') & "_time"] / row[replace(stStats.caches[i], ':', '_') & "_count"] / 1000);
+                        arrayAppend(stResult.avgtimeper[i+1], row[replace(stStats.caches[i], ':', '_') & "_time"] / row[replace(stStats.caches[i], ':', '_') & "_count"]);
                     }
                     else {
                         arrayAppend(stResult.avgtimeper[i+1], 0);
