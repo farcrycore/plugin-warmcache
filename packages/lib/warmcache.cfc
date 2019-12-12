@@ -89,7 +89,6 @@ component {
     public numeric function warmContentTypeCache(required string typename) {
         var stData = getContentTypeFull(arguments.typename, "contenttype");
         var objectid = "";
-        var count = 0;
 
         if (structKeyExists(application, "warmCacheProgress")) {
             application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].total = structCount(stData);
@@ -98,7 +97,6 @@ component {
         // push selected page of data to objectbroker
         for (objectid in stData) {
             application.fc.lib.objectbroker.AddToObjectBroker(stobj=stData[objectid],typename=arguments.typename);
-            count += 1;
             if (structKeyExists(application, "warmCacheProgress")) {
                 application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].progress += 1;
             }
@@ -120,7 +118,6 @@ component {
         var threadid = "";
         var maxSimultaneous = application.fapi.getConfig("warmcache", "threads");
         var overrideKey = "cacheversion_app";
-        var count = 0;
 
         if (structKeyExists(application, "warmCacheProgress")) {
             application.warmCacheProgress.cacheProgress["#arguments.typename#:pagewebskin"].total = structCount(stData);
@@ -139,7 +136,6 @@ component {
         // push selected page of data to objectbroker
         Each(stData, function(objectid){
             cfhttp(method="HEAD", url="http://localhost#stData[objectid].friendlyURL##find('?', stData[objectid].friendlyURL) ? '&' : '?'##overrideKey#", throwOnError=false) {}
-            count += 1;
             if (structKeyExists(application, "warmCacheProgress")) {
                 application.warmCacheProgress.cacheProgress["#stData[objectid].typename#:pagewebskin"].progress += 1;
             }
