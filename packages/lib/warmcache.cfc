@@ -52,6 +52,7 @@ component {
                 "total" = 0
             };
             stPushed.stats[cachename] = application.fc.lib.warmcache.warmCache(listGetAt(cachename, 1, ":"), listGetAt(cachename, 2, ":"));
+            application.warmCacheProgress.cacheProgress[cacheName].progress = stPushed.stats[cachename].pushed;
         }
 
         application.fc.lib.objectbroker.finalizeCacheVersion();
@@ -157,7 +158,7 @@ component {
             sql &= structKeyExists(application.stCOAPI[arguments.typename].stProps, prop) ? ", t.#prop#" : ", '#arguments.extraProps[prop]#' as #prop#";
         }
         if (arguments.includeFU) {
-            sql &= ", f.friendlyURL FROM #arguments.typename# t INNER JOIN farFU f ON t.objectid=f.refobjectid AND f.fuStatus<>0 AND f.bDefault=1";
+            sql &= ", f.friendlyURL FROM #arguments.typename# t LEFT OUTER JOIN farFU f ON t.objectid=f.refobjectid AND f.fuStatus<>0 AND f.bDefault=1";
         }
         else {
             sql &= " FROM #arguments.typename# t";
@@ -198,7 +199,6 @@ component {
             return oType.getWarmableObjects(arguments.typename, "pagewebskin");
         }
 
-        var qObjectData = queryExecute("SELECT * FROM #arguments.typename#", {}, { datasource=application.dsn_read })
         var stResult = {};
         var row = {};
         var column = "";
@@ -206,6 +206,12 @@ component {
         var schema = application.fc.lib.db.getTableMetadata(arguments.typename);
         var property = "";
         var arrayFields = "";
+
+        var sql = "SELECT * FROM #arguments.typename#";
+        if (structKeyExists(application.stCOAPI[arguments.typename].stProps, "status")) {
+            sql &= " WHERE status='approved'"
+        }
+        var qObjectData = queryExecute(sql, {}, { datasource=application.dsn_read });
 
         for (property in schema.fields) {
             if (schema.fields[property].type eq "array") {
