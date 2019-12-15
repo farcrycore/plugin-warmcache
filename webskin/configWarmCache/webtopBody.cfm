@@ -26,6 +26,7 @@
 </ft:processForm>
 
 <cfset qCaches = application.fc.lib.warmcache.getWarmableCaches() />
+<cfset standardStrategy = application.fapi.getConfig("warmcache", "standardStrategy") />
 
 <ft:form>
     <cfoutput>
@@ -56,7 +57,12 @@
         <tr>
             <td><input type="checkbox" name="cachename" value="#qCaches.id#:#qCaches.type#"></td>
             <td>
-                #qCaches.label#<br>
+                <cfif listFindNoCase(standardStrategy, "#qCaches.id#:#qCaches.type#")>
+                    <strong>#qCaches.label# (in standard strategy)</strong>
+                <cfelse>
+                    #qCaches.label#
+                </cfif>
+                <br>
                 <code>application.fc.lib.warmcache.warmCache("#qCaches.id#", "#qCaches.type#")</code>
             </td>
         </tr>
