@@ -61,7 +61,7 @@ component {
         stPushed["new_version"] = application.fc.lib.objectbroker.getCacheVersion();
         stPushed["time"] = stPushed.finish - stPushed.start;
         stPushed["machine"] = application.sysInfo.machineName;
-        application.fc.lib.cdn.ioWriteFile(location="privatefiles", file="/warmcache/stats_#stPushed.finish#.json", data=serializeJSON(stPushed));
+        application.fc.lib.cdn.ioWriteFile(location="privatefiles", file="/warmcache/#application.fapi.getConfig('warmcache', 'statsID')#/stats_#stPushed.finish#.json", data=serializeJSON(stPushed));
 
         structDelete(application, "warmCacheProgress");
 
@@ -94,7 +94,7 @@ component {
         if (structKeyExists(application, "warmCacheProgress")) {
             application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].total = structCount(stData);
         }
-        
+
         // push selected page of data to objectbroker
         for (objectid in stData) {
             application.fc.lib.objectbroker.AddToObjectBroker(stobj=stData[objectid],typename=arguments.typename);
@@ -249,7 +249,8 @@ component {
     }
 
     public struct function getStatHistory(numeric maxrows=3, numeric truncateTo=100) {
-        var qFiles = application.fc.lib.cdn.ioGetDirectoryListing(location='privatefiles', dir='/warmcache/');
+        var statsPath = '/warmcache/#application.fapi.getConfig('warmcache', 'statsID')#'
+        var qFiles = application.fc.lib.cdn.ioGetDirectoryListing(location='privatefiles', dir='#statsPath#/');
         var row = {};
         var stResult = {
             "data" = queryNew("file,machine,start,finish,label,oldVersion,newVersion,total", "string,string,numeric,numeric,string,numeric,numeric,numeric"),
@@ -263,17 +264,17 @@ component {
         var label = "";
 
         for (i=1; i<=qFiles.recordcount - arguments.truncateTo; i++) {
-            application.fc.lib.cdn.ioDeleteFile(location='privatefiles', file='/warmcache' & qFiles.file[i]);
+            application.fc.lib.cdn.ioDeleteFile(location='privatefiles', file=statsPath & qFiles.file[i]);
         }
 
         for (row in qFiles) {
-            stData = deserializeJSON(application.fc.lib.cdn.ioReadFile(location='privatefiles', file='/warmcache/' & row.file));
+            stData = deserializeJSON(application.fc.lib.cdn.ioReadFile(location='privatefiles', file=statsPath & row.file));
             finishDate = DateAdd("s", stData.finish, DateConvert("utc2Local", "January 1 1970 00:00"));
             label = dateFormat(finishDate, 'd mmm yyyy') & " " & timeFormat(finishDate, "HH:mm") & " (" & stData.old_version & ">" & stData.new_version & ")";
             stCacheTypes[label] = [];
 
             queryAddRow(stResult.data);
-            querySetCell(stResult.data, "file", '/warmcache' & row.file);
+            querySetCell(stResult.data, "file", statsPath & row.file);
             querySetCell(stResult.data, "machine", stData.machine);
             querySetCell(stResult.data, "start", stData.start);
             querySetCell(stResult.data, "finish", stData.finish);
