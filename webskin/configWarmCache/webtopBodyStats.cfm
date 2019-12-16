@@ -83,6 +83,10 @@
                         setTimeout(function() { window.location.reload(); }, 5000);
                     </cfif>
                 </script>
+            <cfelseif structKeyExists(application, "warmCacheProgress")>
+                <script>
+                    setTimeout(function() { window.location.reload(); }, 5000);
+                </script>
             </cfif>
         </head>
         <body>
