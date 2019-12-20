@@ -38,7 +38,7 @@
             </div>
             <div class="span6">
                 <ft:buttonPanel>
-                    <cfif len(application.fapi.getConfig("warmcache", "standardStrategy"))>
+                    <cfif len(application.fapi.getConfig("warmcache", "standardStrategy")) and application.security.checkPermission('developer')>
                         <ft:button value="Run Standard Strategy" />
                     </cfif>
                 </ft:buttonPanel>
@@ -74,7 +74,9 @@
     </cfoutput>
 
     <ft:buttonPanel>
-        <ft:button value="Run" />
+        <cfif application.security.checkPermission('developer')>
+            <ft:button value="Run" />
+        </cfif>
         <ft:button value="Save as Standard Strategy" />
     </ft:buttonPanel>
 

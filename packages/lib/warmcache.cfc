@@ -26,6 +26,11 @@ component {
 
 
     public struct function performWarmCache(required string caches=application.fapi.getConfig("warmcache", "standardStrategy")) {
+        if (structKeyExists(application, "warmCacheProgress")) {
+            return {};
+        }
+
+
         var stPushed = {
             "stats" = {},
             "old_version" = application.fc.lib.objectbroker.getCacheVersion(),
