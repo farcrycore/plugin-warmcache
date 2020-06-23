@@ -268,8 +268,9 @@ component {
         var stCacheTypes = {};
         var label = "";
 
-        for (i=1; i<=qFiles.recordcount - arguments.truncateTo; i++) {
-            application.fc.lib.cdn.ioDeleteFile(location='privatefiles', file=statsPath & qFiles.file[i]);
+        while (qFiles.recordcount gt arguments.truncateTo) {
+            application.fc.lib.cdn.ioDeleteFile(location='privatefiles', file=statsPath & qFiles.file[1]);
+            queryDeleteRow(qFiles, 1);
         }
 
         for (row in qFiles) {
