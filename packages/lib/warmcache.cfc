@@ -103,7 +103,10 @@ component {
         // push selected page of data to objectbroker
         for (objectid in stData) {
             application.fc.lib.objectbroker.AddToObjectBroker(stobj=stData[objectid],typename=arguments.typename);
-            if (structKeyExists(application, "warmCacheProgress")) {
+            if (isDefined("application.warmCacheProgress.cacheProgress") and
+                structKeyExists(application.warmCacheProgress.cacheProgress, "#arguments.typename#:contenttype") and
+                structKeyExists(application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"], "progress")
+            ) {
                 application.warmCacheProgress.cacheProgress["#arguments.typename#:contenttype"].progress += 1;
             }
         }
